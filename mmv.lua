@@ -447,6 +447,22 @@ local MiscTab = Window:Tab({
     Locked = false,
 })
 
+local Slider = Tab:Slider({
+    Title = "FPS",
+    Desc = "Changes your FPS limit",
+    Step = 1,
+    Value = {
+        Min = 1,
+        Max = 500,
+        Default = 60,
+    },
+    Callback = function(value)
+        setfpscap(value)
+    end
+})
+
+MiscTab:Divider()
+
 local CoinKeybind = MiscTab:Keybind({
     Title = "Coin Collect",
     Desc = "Teleports coins to you to instantly fill your coin bag",
