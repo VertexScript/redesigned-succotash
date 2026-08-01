@@ -1,7 +1,7 @@
 local redesigned = ...
 
 local succotash = {
-    ["MMV"] = "https://github.com/VertexScript/redesigned-succotash/raw/refs/heads/main/mmv.lua",
+    ["Murder Mystery V"] = "https://github.com/VertexScript/redesigned-succotash/raw/refs/heads/main/mmv.lua",
 }
 
 if succotash[redesigned] then
