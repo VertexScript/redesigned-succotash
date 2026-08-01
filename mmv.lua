@@ -1,13 +1,13 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 -------------------------------------------------------------------------------------------------------------------
 local Window = WindUI:CreateWindow({
-    Title = "Vertex UI | MMV",
+    Title = "Kivexx Mystery V",
     Icon = "door-open",
-    Author = "by Clementine Birthday Dinner",
+    Author = "by Kivexx Hub",
     Folder = "MM2HubScript_U",
 })
 
-local ScriptVersion = "V1.2"
+local ScriptVersion = "Version 1.2"
 
 Window:Tag({
     Title = ScriptVersion,
@@ -20,7 +20,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VertexPrivateMessage = ReplicatedStorage:WaitForChild("ChatMessage")
+local PrivateMessage = ReplicatedStorage:WaitForChild("ChatMessage")
 local TextChatService = game:GetService("TextChatService")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
@@ -31,7 +31,7 @@ local DataChangedEvent = Remotes:WaitForChild("PlayerDataChanged")
 local RoundEndEvent = Remotes:WaitForChild("RoundEndFade")
 local RoundStartEvent = Remotes:WaitForChild("TeleportToPart")
 
-firesignal(VertexPrivateMessage.OnClientEvent, { text = "[Vertex] Loaded version " .. ScriptVersion .. " of the script!" })
+firesignal(PrivateMessage.OnClientEvent, { text = "[Kivexx] Loaded " .. ScriptVersion })
 -------------------------------------------------------------------------------------------------------------------
 local SettingsTab = Window:Tab({
     Title = "Settings",
