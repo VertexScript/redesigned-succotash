@@ -447,7 +447,7 @@ local MiscTab = Window:Tab({
     Locked = false,
 })
 
-local Slider = Tab:Slider({
+local FPSSlider = MiscTab:Slider({
     Title = "FPS",
     Desc = "Changes your FPS limit",
     Step = 1,
