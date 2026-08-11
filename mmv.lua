@@ -92,8 +92,16 @@ local RoleColors = {
 local function CleanupESP(prefix)
     local data = State.ESP[prefix]
     if not data then return end
-    for _, conn in pairs(data.Conns) do if conn then conn:Disconnect() end end
-    for _, obj in pairs(data.Objects) do if obj then pcall(function() obj:Destroy() end) end end
+    for _, conn in pairs(data.Conns) do 
+        if typeof(conn) == "RBXScriptConnection" then 
+            conn:Disconnect() 
+        end 
+    end
+    for _, obj in pairs(data.Objects) do 
+        if obj then 
+            pcall(function() obj:Destroy() end) 
+        end 
+    end
     data.Objects = {}
     data.Conns = {}
     data.Roles = {}
@@ -115,7 +123,24 @@ local function GetToolType(player)
     return nil
 end
 
+local function AnyPlayerHasWeapon()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local tool = GetToolType(player)
+            if tool then return true end
+        end
+    end
+    return false
+end
+
 local function GetRoleColor(player, roles)
+    if AnyPlayerHasWeapon() then
+        local tool = GetToolType(player)
+        if tool == "Gun" then return RoleColors.Sheriff end
+        if tool == "Knife" then return RoleColors.Murderer end
+        return RoleColors.Innocent
+    end
+    
     for id, data in pairs(roles or {}) do
         if typeof(data) == "table" then
             if tostring(id) == tostring(player.UserId) or id == player.Name then
@@ -123,10 +148,8 @@ local function GetRoleColor(player, roles)
             end
         end
     end
-    local tool = GetToolType(player)
-    if tool == "Gun" then return Color3.new(0, 0.5, 1) end
-    if tool == "Knife" then return Color3.new(1, 0, 0) end
-    return Color3.new(0, 1, 0)
+    
+    return RoleColors.Innocent
 end
 
 local PlayerESPToggle = ESPTab:Toggle({
@@ -137,21 +160,23 @@ local PlayerESPToggle = ESPTab:Toggle({
     Value = false,
     Callback = function(state)
         if not state then
+            State.ESP.Player.Enabled = false
             CleanupESP("Player")
             return
         end
         
+        State.ESP.Player.Enabled = true
         State.ESP.Player.Roles = {}
         
         local function UpdateESPColor(player, esp)
-            if not esp then return end
+            if not esp or not State.ESP.Player.Enabled then return end
             local color = GetRoleColor(player, State.ESP.Player.Roles)
             esp.FillColor = color
             esp.OutlineColor = color
         end
         
         local function CreateESP(player)
-            if player == LocalPlayer or not player.Character then return end
+            if not State.ESP.Player.Enabled or player == LocalPlayer or not player.Character then return end
             if State.ESP.Player.Objects[player] then
                 State.ESP.Player.Objects[player]:Destroy()
             end
@@ -213,12 +238,15 @@ local PlayerESPToggle = ESPTab:Toggle({
             end
         end)
         
-        State.ESP.Player.Conns.Loop = task.spawn(function()
+        task.spawn(function()
             while State.ESP.Player.Enabled do
-                task.wait(2)
+                task.wait(0.5)
                 for _, player in ipairs(Players:GetPlayers()) do
+                    if not State.ESP.Player.Enabled then break end
                     if player ~= LocalPlayer and not State.ESP.Player.Objects[player] then
                         CreateESP(player)
+                    elseif player ~= LocalPlayer then
+                        UpdateESPColor(player, State.ESP.Player.Objects[player])
                     end
                 end
             end
@@ -234,20 +262,22 @@ local NameESPToggle = ESPTab:Toggle({
     Value = false,
     Callback = function(state)
         if not state then
+            State.ESP.Name.Enabled = false
             CleanupESP("Name")
             return
         end
         
+        State.ESP.Name.Enabled = true
         State.ESP.Name.Roles = {}
         
         local function UpdateNameColor(player, esp)
-            if not esp then return end
+            if not esp or not State.ESP.Name.Enabled then return end
             local label = esp:FindFirstChildOfClass("TextLabel")
             if label then label.TextColor3 = GetRoleColor(player, State.ESP.Name.Roles) end
         end
         
         local function CreateNameESP(player)
-            if player == LocalPlayer or not player.Character then return end
+            if not State.ESP.Name.Enabled or player == LocalPlayer or not player.Character then return end
             local head = player.Character:FindFirstChild("Head")
             if not head then return end
             
@@ -308,7 +338,7 @@ local NameESPToggle = ESPTab:Toggle({
             end
         end)
         
-        State.ESP.Name.Conns.RoundStart = RoundStartEvent.OnClientEvent:Connect(function()
+        State.ESP.Name.Conns.RoundStart = RoundEndEvent.OnClientEvent:Connect(function()
             State.ESP.Name.Roles = {}
             for plr, esp in pairs(State.ESP.Name.Objects) do
                 UpdateNameColor(plr, esp)
@@ -329,10 +359,11 @@ local NameESPToggle = ESPTab:Toggle({
             end
         end)
         
-        State.ESP.Name.Conns.Loop = task.spawn(function()
+        task.spawn(function()
             while State.ESP.Name.Enabled do
-                task.wait(2)
+                task.wait(0.5)
                 for _, player in ipairs(Players:GetPlayers()) do
+                    if not State.ESP.Name.Enabled then break end
                     if player ~= LocalPlayer then
                         if not State.ESP.Name.Objects[player] then
                             CreateNameESP(player)
@@ -448,7 +479,7 @@ local MiscTab = Window:Tab({
 })
 
 local FPSSlider = MiscTab:Slider({
-    Title = "FPS",
+    Title = "FPS Slider",
     Desc = "Changes your FPS limit",
     Step = 1,
     Value = {
@@ -458,6 +489,19 @@ local FPSSlider = MiscTab:Slider({
     },
     Callback = function(value)
         setfpscap(value)
+      FPSInput:Set(input)
+    end
+})
+
+local FPSInput = MiscTab:Input({
+    Title = "FPS Input",
+    Desc = "Changes your FPS limit via input",
+    Value = "60",
+    Type = "TextArea",
+    Placeholder = "Enter Number..",
+    Callback = function(input) 
+        setfpscap(input)
+      FPSSlider:Set(input)
     end
 })
 
@@ -864,23 +908,61 @@ InnocentTab:Divider()
 
 local SpeedGlitchToggle = InnocentTab:Toggle({
     Title = "Speed Glitch Toggle",
-    Desc = "Toggles speed glitching",
+    Desc = "Allows you to speed glitch",
     Icon = "sport-shoe",
     Type = "Checkbox",
     Value = false,
     Callback = function(state)
+        local function cleanup()
+            local char = LocalPlayer.Character
+            if char then
+                local massPart = char:FindFirstChild("SpeedGlitchMass")
+                if massPart then massPart:Destroy() end
+            end
+            if State.Misc.SpeedGlitch.MassPart then
+                State.Misc.SpeedGlitch.MassPart:Destroy()
+                State.Misc.SpeedGlitch.MassPart = nil
+            end
+        end
+        
         local function setupSpeedGlitch(char)
             if not char then return end
             
+            local hrp = char:WaitForChild("HumanoidRootPart")
             local humanoid = char:WaitForChild("Humanoid")
-            State.Misc.SpeedGlitch.OriginalSpeed = humanoid.WalkSpeed
-            local currentTween = nil
+            local rightHand = char:WaitForChild("RightHand")
             
-            if State.Misc.SpeedGlitch.Conns.State then
-                State.Misc.SpeedGlitch.Conns.State:Disconnect()
+            local massPart = Instance.new("Part")
+            massPart.Name = "SpeedGlitchMass"
+            massPart.Size = Vector3.new(0.5, 0.5, 0.5)
+            massPart.Transparency = 1
+            massPart.CanCollide = false
+            massPart.CanQuery = false
+            massPart.CanTouch = false
+            massPart.Anchored = false
+            massPart.Massless = false
+            
+            massPart.CustomPhysicalProperties = PhysicalProperties.new(55, 0.3, 0.5)
+            
+            State.Misc.SpeedGlitch.MassPart = massPart
+            
+            local weld = Instance.new("Weld")
+            weld.Name = "SpeedGlitchWeld"
+            weld.Part0 = rightHand
+            weld.Part1 = massPart
+            weld.Parent = rightHand
+            massPart.Parent = char
+            
+            if State.Misc.SpeedGlitch.Conns.Heartbeat then
+                State.Misc.SpeedGlitch.Conns.Heartbeat:Disconnect()
             end
             
-            State.Misc.SpeedGlitch.Conns.State = humanoid.StateChanged:Connect(function(oldState, newState)
+            State.Misc.SpeedGlitch.Conns.Heartbeat = RunService.Heartbeat:Connect(function()
+                if not char or not char.Parent then
+                    cleanup()
+                    return
+                end
+                
                 local hasTool = false
                 for _, item in pairs(char:GetChildren()) do
                     if item:IsA("Tool") then
@@ -889,72 +971,53 @@ local SpeedGlitchToggle = InnocentTab:Toggle({
                     end
                 end
                 
-                if not hasTool then
-                    humanoid.WalkSpeed = State.Misc.SpeedGlitch.OriginalSpeed
-                    if currentTween then
-                        currentTween:Cancel()
-                        currentTween = nil
-                    end
-                    return
-                end
+                local isSwimming = humanoid:GetState() == Enum.HumanoidStateType.Swimming
                 
-                if humanoid:GetState() == Enum.HumanoidStateType.Climbing then return end
-                
-                if newState == Enum.HumanoidStateType.Jumping or newState == Enum.HumanoidStateType.Freefall then
-                    local baseSpeed = State.Misc.SpeedGlitch.Speed + State.Misc.SpeedGlitch.OriginalSpeed
-                    
-                    local moveDir = humanoid.MoveDirection
-                    local isJumpingStraight = moveDir.Magnitude < 0.1
-                    local targetSpeed = isJumpingStraight and (baseSpeed * 0.3) or baseSpeed
-                    
-                    if currentTween then currentTween:Cancel() end
-                    
-                    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                    local tweenGoal = {WalkSpeed = targetSpeed}
-                    currentTween = TweenService:Create(humanoid, tweenInfo, tweenGoal)
-                    currentTween:Play()
-                end
-                
-                if newState == Enum.HumanoidStateType.Running or newState == Enum.HumanoidStateType.Landed then
-                    humanoid.WalkSpeed = State.Misc.SpeedGlitch.OriginalSpeed
-                    if currentTween then
-                        currentTween:Cancel()
-                        currentTween = nil
-                    end
+                if hasTool and state and not isSwimming then
+                    local offsetStuds = State.Misc.SpeedGlitch.Offset or 20
+                    weld.C0 = CFrame.new(0, 0, -offsetStuds)
+                    massPart.CustomPhysicalProperties = PhysicalProperties.new(
+                        100 + (offsetStuds * 2),
+                        0.3,
+                        0.5
+                    )
+                else
+                    weld.C0 = CFrame.new(0, 0, 0)
                 end
             end)
         end
         
         if state then
-            if LocalPlayer.Character then setupSpeedGlitch(LocalPlayer.Character) end
-            
+            cleanup()
+            if LocalPlayer.Character then 
+                setupSpeedGlitch(LocalPlayer.Character) 
+            end
             State.Misc.SpeedGlitch.Conns.CharAdded = LocalPlayer.CharacterAdded:Connect(setupSpeedGlitch)
         else
-            for _, conn in pairs(State.Misc.SpeedGlitch.Conns) do conn:Disconnect() end
-            State.Misc.SpeedGlitch.Conns = {}
-            
-            local char = LocalPlayer.Character
-            if char then
-                local humanoid = char:FindFirstChild("Humanoid")
-                if humanoid then humanoid.WalkSpeed = State.Misc.SpeedGlitch.OriginalSpeed end
+            for _, conn in pairs(State.Misc.SpeedGlitch.Conns) do 
+                if conn then conn:Disconnect() end
             end
+            State.Misc.SpeedGlitch.Conns = {}
+            cleanup()
         end
     end
 })
 
 local SpeedGlitchSlider = InnocentTab:Slider({
-    Title = "Speed Glitch - Speed",
-    Desc = "Adjust the speed so it'll start working'",
+    Title = "Speed Glitch - Offset",
+    Desc = "Center of mass offset in front (studs)",
     Step = 1,
     Value = {
-        Min = 10,
-        Max = 100,
-        Default = 50,
+        Min = 15,
+        Max = 35,
+        Default = 20,
     },
     Callback = function(value)
-        State.Misc.SpeedGlitch.Speed = value
+        State.Misc.SpeedGlitch.Offset = value
     end
 })
+
+SpeedGlitchSlider:Set(35)
 
 InnocentTab:Divider()
 
