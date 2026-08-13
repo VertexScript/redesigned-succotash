@@ -1385,6 +1385,196 @@ local TrapPlayerButton = MurdererTab:Button({
         end
     end
 })
+
+MurdererTab:Divider()
+
+local knifeHitboxSize = 5
+local hitboxEnabled = false
+local currentKnife = nil
+local originalSize = nil
+local visualHandle = nil
+local hitboxHandle = nil
+local selectionBox = nil
+local connections = {}
+local rsConnection = nil
+
+local function cleanupKnifeHitbox()
+    if rsConnection then
+        rsConnection:Disconnect()
+        rsConnection = nil
+    end
+    if not currentKnife then return end
+    if selectionBox then
+        selectionBox:Destroy()
+        selectionBox = nil
+    end
+    if visualHandle then
+        visualHandle:Destroy()
+        visualHandle = nil
+    end
+    if hitboxHandle and hitboxHandle.Parent then
+        hitboxHandle.Size = originalSize or Vector3.new(1, 1, 1)
+        hitboxHandle.Transparency = 0
+        hitboxHandle.Massless = false
+    end
+    currentKnife = nil
+    originalSize = nil
+    hitboxHandle = nil
+end
+
+local function applyKnifeHitbox(tool)
+    if not hitboxEnabled then return end
+    if tool.Name ~= "Knife" then return end
+    if currentKnife == tool then return end
+    
+    cleanupKnifeHitbox()
+    
+    local handle = tool:FindFirstChild("Handle")
+    if not handle then return end
+    
+    currentKnife = tool
+    originalSize = handle.Size
+    hitboxHandle = handle
+    
+    visualHandle = handle:Clone()
+    visualHandle.Name = "VisualHandle"
+    visualHandle.Transparency = 0
+    visualHandle.CanCollide = false
+    visualHandle.CanQuery = false
+    visualHandle.Size = originalSize
+    visualHandle.Parent = tool
+    
+    handle.Massless = true
+    handle.Transparency = 1
+    handle.Size = Vector3.new(knifeHitboxSize, knifeHitboxSize, knifeHitboxSize)
+    
+    selectionBox = Instance.new("SelectionBox")
+    selectionBox.Name = "KnifeHitboxVisualizer"
+    selectionBox.Color3 = Color3.fromRGB(255, 0, 0)
+    selectionBox.LineThickness = 0.05
+    selectionBox.Adornee = handle
+    selectionBox.Parent = tool
+    
+    rsConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if not hitboxEnabled or not currentKnife or not hitboxHandle or not hitboxHandle.Parent then
+            return
+        end
+        handle.Transparency = 1
+        handle.Size = Vector3.new(knifeHitboxSize, knifeHitboxSize, knifeHitboxSize)
+        if visualHandle and visualHandle.Parent then
+            visualHandle.Transparency = 0
+            visualHandle.CFrame = handle.CFrame
+        end
+    end)
+end
+
+local function checkForKnife()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    local backpack = player:FindFirstChild("Backpack")
+    
+    if backpack then
+        for _, obj in pairs(backpack:GetChildren()) do
+            if obj:IsA("Tool") and obj.Name == "Knife" then
+                applyKnifeHitbox(obj)
+                return
+            end
+        end
+    end
+    
+    if character then
+        for _, obj in pairs(character:GetChildren()) do
+            if obj:IsA("Tool") and obj.Name == "Knife" then
+                applyKnifeHitbox(obj)
+                return
+            end
+        end
+    end
+end
+
+local function setupMonitoring()
+    for _, conn in pairs(connections) do
+        conn:Disconnect()
+    end
+    connections = {}
+    
+    local player = game.Players.LocalPlayer
+    
+    local function monitorBackpack(backpack)
+        table.insert(connections, backpack.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") and child.Name == "Knife" then
+                applyKnifeHitbox(child)
+            end
+        end))
+        
+        for _, obj in pairs(backpack:GetChildren()) do
+            if obj:IsA("Tool") and obj.Name == "Knife" then
+                applyKnifeHitbox(obj)
+                break
+            end
+        end
+    end
+    
+    local function onCharacterAdded(char)
+        table.insert(connections, char.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") and child.Name == "Knife" then
+                applyKnifeHitbox(child)
+            end
+        end))
+        
+        for _, obj in pairs(char:GetChildren()) do
+            if obj:IsA("Tool") and obj.Name == "Knife" then
+                applyKnifeHitbox(obj)
+                break
+            end
+        end
+        
+        local backpack = player:WaitForChild("Backpack")
+        monitorBackpack(backpack)
+    end
+    
+    table.insert(connections, player.CharacterAdded:Connect(onCharacterAdded))
+    
+    if player.Character then
+        onCharacterAdded(player.Character)
+    else
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            monitorBackpack(backpack)
+        end
+    end
+end
+
+setupMonitoring()
+
+local KnifeHitboxSlider = MurdererTab:Slider({
+    Title = "Knife Hitbox",
+    Desc = "Increases your knive's hitbox by studs",
+    Step = 1,
+    Value = {
+        Min = 0,
+        Max = 40,
+        Default = 5,
+    },
+    Callback = function(value)
+        knifeHitboxSize = value
+    end
+})
+
+local KnifeHitboxToggle = MurdererTab:Toggle({
+    Title = "Change Knife Hitbox",
+    Desc = "Changes Knife Hitbox according to the slider",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state) 
+        hitboxEnabled = state
+        if state then
+            checkForKnife()
+        else
+            cleanupKnifeHitbox()
+        end
+    end
+})
 -------------------------------------------------------------------------------------------------------------------
 local MapTab = Window:Tab({
     Title = "Map",
